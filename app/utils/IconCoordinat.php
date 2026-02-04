@@ -110,7 +110,6 @@ class IconCoordinat {
                 $data['ic-hp'] = '';
                 return $data;
             }
-            continue;
         }
     }
 }

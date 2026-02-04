@@ -12,6 +12,8 @@ class rsCaptchaV5 {
     private $koordinat;
     private $key;
 
+    protected $url;
+    
     public function __construct($host){
         $this->url = "https://rscaptcha.com/";
         $this->host = $host;

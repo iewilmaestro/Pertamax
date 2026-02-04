@@ -72,12 +72,18 @@ function login(){
 	}
 	$data = http_build_query($data);
 	curl(host.'auth/login', headers(), $data);
+	return curl(host, headers(), $data);
 }
 function Dashboard(){
 	$r = curl(host."referrals",headers());
 	$refId = explode('"', explode('value="https://satoshifaucet.io/?r=', $r)[1])[0];
 	return $refId;
 }
+
+// ===== SET ECAPTCHA =====
+$ecaptcha = new Ecaptcha(host);
+$ecaptcha->headers = headers();
+
 Display::banner();
 $r = Config::load();
 if(count($r) < 1){
@@ -105,18 +111,36 @@ preg_match_all('#faucet\/currency\/([a-zA-Z0-9]+)#i', $r, $matches);
 
 if(isset($matches[1])){
 	$coins = array_values(array_unique(array_map('strtolower', $matches[1])));
+	pilih_coin:
 	$list = implode(',', $coins);
 	print "list coin: ".$list."\n";
-    Display::isi("Input Coin");
-	$pil = readline();
-	$coin = array_map('trim', explode(',', $pil));
+    Display::isi("Coin");
+    $input = trim(readline());
+
+    if ($input === '') {
+        Display::Error("Input tidak boleh kosong\n");
+        goto pilih_coin;
+    }
+
+    $coin = array_map('trim', explode(',', $input));
+    $selected = array_map('strtolower', $coin);
+    $selected = array_values(array_unique(array_filter($selected)));
+    if (empty($selected)) {
+        Display::Error("Tidak ada coin valid\n");
+        goto pilih_coin;
+    }
+    $invalid = array_diff($selected, $coins);
+    if (!empty($invalid)) {
+        Display::Error("Invalid coin: " . implode(', ', $invalid) ."\n");
+        goto pilih_coin;
+    }
 	Display::Line();
 	
 	$temp = [];
 	foreach ($coin as $c) {
 		$temp[$c] = false;
 	}
-	
+	$retry = 0;
 	while(true){
 		$allDone = true;
         foreach ($coin as $c) {
@@ -128,6 +152,7 @@ if(isset($matches[1])){
         if ($allDone) break;
 		foreach($coin as $a => $c){
 			$r = curl(host.'faucet/currency/'.$c, headers());
+			$sc = $scrap->Result($r);
 			$tmr = explode('var wait = ', $r);
 			if(isset($tmr[1])){
 				$tmr = explode('-',$tmr[1])[0];
@@ -138,6 +163,7 @@ if(isset($matches[1])){
 			}
 			
 			if(!$r){
+				Display::Error("Please turn off Vpn Or Proxy\n");
                 Display::Error("Please Verify Your Account to use any fetures.\n");
 				exit;
 			}
@@ -151,31 +177,44 @@ if(isset($matches[1])){
 			for ($i = 0; $i < count($input[1]); $i++) {
 				$data[$input[1][$i]] = $input[2][$i];
 			}
-			if(explode('\"',explode('rel=\"',$r)[1])[0]){
-				$atb = $iewil->AntiBot($r);
-				if(!$atb)continue;
-				$data['antibotlinks'] = $atb;
+			$antibot = explode('rel=\"',$r);
+			if(isset($antibot[1])){
+				$antibot_cek = explode('\"',$antibot[1])[0];
+				if(isset($antibot_cek)){
+					$atb = $iewil->AntiBot($r);
+					if(!$atb)continue;
+					$data['antibotlinks'] = $atb;
+				}
 			}
 			$data['utt'] = 'Asia/Jakarta';
 			$data['ls'] = 'en-US,en';
 			$data['uf'] = md5(Config::pick('email'));
-			$sitekey = explode('"', explode('<div class="cf-turnstile" data-sitekey="', $r)[1])[0];
-			$emot = explode('"', explode('<option value="', $r)[1])[0];
-			if($sitekey){
+
+			$emot = Functions::xp($r, '<option value="', '"');
+			if(isset($sc['captcha']['cf-turnstile'])){
 				$cap = $iewil->Turnstile('https://satoshifaucet.io');
 				if(!$cap)continue;
 				$data["captcha"] = "turnstile-cloudflare";
 				$data["cf-turnstile-response"] = $cap;
-			}elseif($emot == "emoji_captcha"){
-                Display::Error("Emot captcha belum update\n");
-		        exit;
-				$captcha = EmotCaptcha();
+			}elseif(isset($emot) &&  $emot == "emoji_captcha"){
+				$captcha = $ecaptcha->getResult();
 				if(!$captcha)continue;
 				$data = array_merge($data, $captcha);
 			}else{
-				Display::Error("ganti captcha belum di set\n");
-		        exit;
+				$captcha = array_keys($sc['captcha']);
+				if(isset($captcha[0])){
+					Display::Error("Captcha ".$captcha[0]." not support\n");
+				}else{
+					Display::Error("Captcha belum support\n");
+				}
+				if($retry > 5){
+					exit;
+				}
+				Display::Tmr(30);
+				$retry++;
+				continue;
 			}
+			$retry = 0;
 			$data = http_build_query($data);
 			curl(host.'faucet/verify/'.$c, headers(), $data);
 			$r = curl(host.'faucet/currency/'.$c, headers());
@@ -205,5 +244,6 @@ if(isset($matches[1])){
 			}
 		}
 	}
+	Display::Error("All coins have been claimed\n");
 }
 ?>

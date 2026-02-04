@@ -127,6 +127,10 @@ while(true){
 	}
 	$data = $sc['input'];
 	if($sc['options'][0] == "rscaptcha"){
+        if(str_contains($r, 'rscaptcha_img')){
+            Display::Error("RsCaptcha Updside not support\n");
+            exit;
+        }
 		$cap = $rscap->getResult();
 		if(!$cap)continue;	
 		$cap['captcha'] = 'rscaptcha';
@@ -141,9 +145,14 @@ while(true){
         Display::clearLine();
 		continue;
 	}
-			
+    
 	$dataset = http_build_query($dataset);
 	$r = curl(host."faucet/verify",headers(), $dataset);
+    $sc = $scrap->Result($r);
+    if(str_contains($sc['title'],'Login')){
+        Display::Error("Please turn off Vpn Or Proxy\n");
+        exit;
+    }
 	$wr = explode('</div>',explode('<i class="fas fa-exclamation-circle"></i> ', $r)[1])[0];
 	$ss = explode("icon: 'success',", $r)[1];
 	if(preg_match('/Shortlink must be completed/', $r)){

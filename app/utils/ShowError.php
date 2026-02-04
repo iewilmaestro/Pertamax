@@ -53,7 +53,7 @@ class ShowError {
         $this->lastErrorMsg = $message;
 
         $date = date('Y-m-d H:i:s');
-        // print Display::debug($message);
+        Display::debug($message);
 
         file_put_contents(
             $this->logFile, 

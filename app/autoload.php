@@ -2,7 +2,7 @@
 
 spl_autoload_register(function($class){
 
-    $dirs = ['model','modul'];
+    $dirs = ['modul','utils'];
 
     foreach ($dirs as $dir) {
         $file = __DIR__ . "/$dir/$class.php";
