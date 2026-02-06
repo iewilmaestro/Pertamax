@@ -226,11 +226,15 @@ if(isset($matches[1])){
 			}
 			if($matches[2] == "Success!"){
                 Display::sukses($matches[3]);
-			}else{
-                Display::Error($matches[3]);
+			}elseif($matches[3]){
+				Display::Error($matches[3]);
 				if(preg_match('/Shortlink/',$matches[3])){
 					exit;
 				}
+				sleep(3);
+                Display::Clearline();
+			}else{
+                Display::Error('Not found');
 				sleep(3);
                 Display::Clearline();
 			}

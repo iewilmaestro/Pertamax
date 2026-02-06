@@ -203,7 +203,7 @@ if(isset($matches[1])){
 				$icon->token = $sc['input']['_iconcaptcha-token'];
                 $cap = $icon->getResult();
                 if(!$cap)continue;
-				$data = array_merge($data, $icon);
+				$data = array_merge($data, $$cap);
 			}else{
 				Display::Error("captcha update\n");
 				exit;

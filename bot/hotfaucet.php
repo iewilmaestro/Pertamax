@@ -1,7 +1,7 @@
 <?php
 
-const host = "https://99faucet.com/";
-const reff = "https://99faucet.com/?r=3450";
+const host = "https://hotfaucet.in/";
+const reff = "https://hotfaucet.in/?r=10151";
 const cookieFile = "data/".TITLE."/cookie.txt";
 
 function curl($url, $headers, $data = 0) {
@@ -39,7 +39,8 @@ function headers($data = 0){
 	return $h;
 }
 function Dashboard(){
-	$r = curl(host."account",headers());
+	$r = curl(host."profile",headers());
+    if(str_contains($r,'Login'))return;
     $email = Functions::xp($r,'data-cfemail="', '"');
     if(isset($email)){
         $email = Functions::cfDecodeEmail($email);
@@ -47,9 +48,8 @@ function Dashboard(){
     return $email;
 }
 
-$rscap = new rsCaptchaV5(host);
-$rscap->app_id = "1044";
-$rscap->public_key = "ws1WNm5E0xjtnezLT8r9";
+$icon = new IconCoordinat(host);
+$icon->icon_header = headers();
 
 Display::banner();
 
@@ -70,7 +70,7 @@ Display::Cetak("email", $email);
 Display::Line();
 
 $r = curl(host."dashboard",headers());
-preg_match_all('#faucet\/([a-zA-Z0-9]+)#i', $r, $matches);
+preg_match_all('#faucet\/currency\/([a-zA-Z0-9]+)#i', $r, $matches);
 if(isset($matches[1])){
 	$coins = array_values(array_unique(array_map('strtolower', $matches[1])));
 
@@ -115,7 +115,7 @@ if(isset($matches[1])){
         if ($allDone) break;
 		foreach($coin as $a => $c){
 			if ($temp[$c] === true) continue;
-			$r = curl(host.'faucet/'.$c, headers());
+			$r = curl(host.'faucet/currency/'.$c, headers());
             $sc = $scrap->Result($r);
             preg_match('#Atleast\s(\d+)\sShortlinks#', $r, $matc);
             if(isset($matc[1])){
@@ -138,18 +138,15 @@ if(isset($matches[1])){
                 Display::Error("locked belum di set\n");
                 exit;
             }
-            $tmr = Functions::xp($r, 'let wait = ', '-');
+            $tmr = Functions::xp($r, 'var wait = ', '-');
 			if(isset($tmr)){
 				Display::Tmr($tmr);
 				continue;
 			}
 
 			if(!$r){
-				if($gagal>5){
-                    Display::Error("Please Verify Your Account to use any fetures.\n");
-                    exit;
-                }
-                $gagal++;
+                Display::Error("Please Verify Your Account to use any fetures.\n");
+				exit;
 			}
 
             // === Triger LIMIT 1
@@ -158,60 +155,51 @@ if(isset($matches[1])){
 				$temp[$c] = true;
 				continue;
 			}
-            // === Triger LIMIT 2 Jika 1 Gak ada
-            if($sc['faucet'][1][0] < 1){
-                Display::Error($c.":: Daily claim limit. #2\n");
-				$temp[$c] = true;
-				continue;
-            }
+
 			$data = [];
 			$data = $sc['input'];
-			$data['uf'] = md5($email);
-			$data['utt'] = 'Asia/Jakarta';
-			$data['ls'] = 'en-US,en';
 
-            if($sc['options'][0] == "rscaptchav37"){
-                if(str_contains($r, 'rscaptcha_img')){
-                    Display::Error("RsCaptcha Updside not support\n");
-                    exit;
-                }
-                $cap = $rscap->getResult();
-                if(!$cap)continue;	
-                $cap['captcha'] = 'rscaptchav37';
-            }else{
-                Display::Error("captcha Update\n");
-                exit;
+            if($sc['input']['_iconcaptcha-token']){
+				$icon->token = $sc['input']['_iconcaptcha-token'];
+                $cap = $icon->getResult();
+                if(!$cap)continue;
+			}else{
+				Display::Error("captcha update\n");
+				exit;
             }
 			
 			$data = array_merge($data, $cap);
+            
 			$data = http_build_query($data);
-			$r = curl(host.'faucet/verify', headers(), $data);
-			preg_match("/Swal\.fire\(\s*{\s*title:\s*'([^']+)',\s*text:\s*'([^']+)',\s*icon:\s*'([^']+)'/", $r, $matches);
+			$r = curl(host.'faucet/verify/'.$c, headers(), $data);
+			preg_match("/Swal\.fire\(\s*{\s*icon:\s*'([^']+)',\s*title:\s*'([^']+)',\s*html:\s*'([^']+)'/", $r, $matches);
 			if(preg_match('/sufficient funds/',$r)){
 				$temp[$c] = true;
 				Display::Error($c.":: Sufficient funds\n");
 				continue;
 			}
-			if($matches[1] == "Good job!"){
+			if($matches[1] == "success"){
                 $gagal = 0;
-                Display::sukses($matches[2]);
-            }elseif($matches[2]){
-                Display::Error($matches[2]);
-				if(preg_match('/Shortlink/',$matches[2])){
+                Display::sukses($matches[3]);
+            }elseif($matches[3]){
+                Display::Error($matches[3]);
+				if(preg_match('/Shortlink/',$matches[3])){
 					exit;
 				}
 				sleep(3);
+                print PHP_EOL;
 			}else{
 				Display::Error("Not Found\n");
-                if($gagal>4){
+                if($gagal>5){
                     Config::hapus(0);
                     sleep(3);
                     goto cookie;
                 }
                 $gagal++;
                 sleep(3);
+                print PHP_EOL;
 			}
-			$tmr = Functions::xp($r, 'let wait = ', '-');
+			$tmr = Functions::xp($r, 'var wait = ', '-');
 			if(isset($tmr)){
 				Display::Tmr($tmr);
 			}

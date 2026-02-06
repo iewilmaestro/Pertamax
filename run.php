@@ -1,7 +1,6 @@
 <?php
 
 error_reporting(0);
-
 require "app/autoload.php";
 
 App::boot();
@@ -11,11 +10,15 @@ App::error();
 App::data();
 
 Display::banner();
+
 $captcha = new Captcha();
 $scrap = new HtmlScrap();
 $iewil = new Iewil();
 
 Display::banner();
+Display::Info('`php run.php -h` to display helper');
+Display::Line();
+
 $files = array_values(array_filter(scandir("bot"), function($f) {
     return is_file("bot/$f") && pathinfo($f, PATHINFO_EXTENSION) === 'php';
 }));
