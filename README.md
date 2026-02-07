@@ -25,6 +25,20 @@ pkg install git -y
 ```
 git clone https://github.com/iewilmaestro/Pertamax
 ```
+# Manual Update
+```
+cd Pertamax
+```
+```
+git pull
+```
+# Error Handling
+```
+git reset --hard
+```
+```
+git pull
+```
 # Run script
 ```
 cd Pertamax
