@@ -72,8 +72,20 @@ function login(){
     }
 }
 function Dashboard(){
-	$r = curl(host."app/dashboard",headers());
-	return explode('"', explode('value="'.host.'?r=', $r)[1])[0];
+	while(true){
+		$r = curl(host."app/dashboard",headers());
+		// === opsi Timer 2
+		preg_match('/<b id="minute">(\d+)<\/b>:(<b id="second">(\d+)<\/b>)/', $r, $matches);
+		if (isset($matches[1]) && isset($matches[3])) {
+			Display::Error("Account Locked\n");
+			$minute = $matches[1];
+			$second = $matches[3];
+			$tmr = ($minute * 60) + $second;
+			Display::Tmr($tmr+5);
+			continue;
+		}
+		return explode('"', explode('value="'.host.'?r=', $r)[1])[0];
+	}
 }
 // ==== SET ICON COORDINAT =====
 $icon = new IconCoordinat(host);
@@ -133,7 +145,7 @@ if(isset($matches[1])){
 	foreach ($coin as $c) {
 		$temp[$c] = false;
 	}
-	
+	$gagal = 0;
 	while(true){
 		$allDone = true;
         foreach ($coin as $c) {
@@ -144,12 +156,17 @@ if(isset($matches[1])){
         }
         if ($allDone) break;
 		foreach($coin as $a => $c){
+			if ($temp[$c] === true) continue;
 			$r = curl(host.'app/faucet?currency='.$c, headers());
 			$sc = $scrap->Result($r);
             if(!$r){
-				Display::Error("Please turn off Vpn Or Proxy\n");
-                Display::Error("Please Verify Your Account to use any fetures.\n");
+				$gagal++;
+				if($gagal > 5){
+					Display::Error("Please turn off Vpn Or Proxy\n");
+                	Display::Error("Please Verify Your Account to use any fetures.\n");
 				exit;
+				}
+				continue;
 			}
 
             // == Opsi Timer 1
@@ -165,6 +182,7 @@ if(isset($matches[1])){
             // === opsi Timer 2
 			preg_match('/<b id="minute">(\d+)<\/b>:(<b id="second">(\d+)<\/b>)/', $r, $matches);
 			if (isset($matches[1]) && isset($matches[3])) {
+				Display::Error("Account Locked\n");
 				$minute = $matches[1];
 				$second = $matches[3];
 				$tmr = ($minute * 60) + $second;
@@ -183,7 +201,7 @@ if(isset($matches[1])){
 			$data = $sc['input'];
 			$cekATB = explode('rel=\"',$r);
 			if(isset($cekATB[1])){
-				$antibot = $iewil->AntiBot($r);
+				$antibot = $captcha->AntiBot($r);
 				if(!$antibot)continue;
 				$data['antibotlinks'] = $antibot;
 			}
@@ -239,6 +257,7 @@ if(isset($matches[1])){
 			}
 			preg_match("/Toast\.fire\({\s*icon:\s*'([^']+)',\s*title:\s*'([^']+)',\s*text:\s*'([^']+)'/", $r, $matches);
 			if($matches[1] == "success"){
+				$gagal = 0;
 				Display::Sukses($matches[3]);
 				Display::Line();
 			}elseif(isset($matches[3])){

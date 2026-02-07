@@ -158,7 +158,11 @@ if(isset($matches[1])){
 
 			$data = [];
 			$data = $sc['input'];
-
+            if(count($data) < 1){
+                Display::Error($c.":: Daily claim limit. #1\n");
+				$temp[$c] = true;
+				continue;
+            }
             if($sc['input']['_iconcaptcha-token']){
 				$icon->token = $sc['input']['_iconcaptcha-token'];
                 $cap = $icon->getResult();
