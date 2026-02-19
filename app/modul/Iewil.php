@@ -8,6 +8,8 @@ class Iewil {
     function __construct(){
         $this->res = "http://az.vpnbersama.us:13141/api/res.php";
         $this->req = "http://az.vpnbersama.us:13141/api/req.php";
+        //$this->res = "http://192.168.0.94/api/res.php";
+        //$this->req = "http://192.168.0.94/api/req.php";
     }
 
     // ===== PRIVATE REQUEST =====

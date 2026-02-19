@@ -1,7 +1,8 @@
 <?php
 
 const host  = "https://linksfly.link/";
-const reff  = "https://linksfly.link/?r=4256";
+const reff  = "https://t.me/Miniappcrypto_bot?start=624";
+
 const cookieFile = "data/".TITLE."/cookie.txt";
 
 function curl($url, $headers, $data = 0) {
@@ -31,49 +32,78 @@ function curl($url, $headers, $data = 0) {
     return $response;
 }
 
-function headers($data = 0){
+function headers($referer = 0){
     $h[] = "Host: ".parse_url(host)['host'];
-	if($data)$h[] = "Content-Length: ".strlen($data);
-	$h[] = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+	if($referer)$h[] = "referer: ".$referer;
+	$h[] = "Origin: ".host;
+	$h[] = "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+	$h[] = "Accept-Language: en-US,en;q=0.9";
+	$h[] = "Connection: keep-alive";
+	$h[] = 'sec-ch-ua-platform: "Android"';
+	$h[] = "User-Agent: Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 Telegram-Android/10.9.0";
 	return $h;
 }
 
 function login(){
-    global $scrap, $icon;
-    $gagal = 1;
-	while(true){
-        $r = curl(reff, headers());
-        $sc = $scrap->Result($r);
-        if($sc['input']['_iconcaptcha-token']){
-            $icon->token = $sc['input']['_iconcaptcha-token'];
-            $cap = $icon->getResult();
-            if(!$cap)continue;
-        }else{
-            Display::Error("captcha update\n");
-            exit;
-        }
-        $data = [];
-        $data = $sc['input'];
-        $data['wallet'] = Config::pick('email');
-        $data['uid'] = md5(Config::pick('email'));
-        $data['private_ip'] = '';
-        
-        $dataset = array_merge($data, $cap);
-        $r = curl(host."app/auth/validation",headers(), http_build_query($dataset));
-        if (str_contains($r, 'Dashboard')){
-            Display::sukses("login Sukses\n");
-            return;
-        }else{
-            if($gagal > 5)exit;
-            $gagal++;
-            Display::Error("Login gagal\n");
-            continue;
-        }
-    }
+	global $iewil;
+	$query = Config::pick('QueryID');
+	$user = urldecode(explode('&',explode('user=', $query)[1])[0]);
+	$user = json_decode($user, true);
+	if(is_array($user)){
+		$url = host;
+		$retry = 0;
+		$r = curl(host, headers($url));
+		//print_r($r);exit;
+		$csrf = explode('"', explode('<input type="hidden" name="csrf_test_name" value="', $r)[1])[0];
+		while ($retry < 5) {
+			$cap = $iewil->turnstile(host);
+			if(!$cap){
+                Display::Error("Captcha tidak berhasil di bypass\n");
+                $status = "Captcha Update\n";
+				$retry++;
+				continue;
+			}
+			
+			$data = http_build_query([
+				"csrf_test_name" => $csrf,
+				"wallet" => Config::pick('email'),
+				"telegram_user_id" => $user['id'],
+				"telegram_first_name" => $user['first_name'],
+				"telegram_last_name" => $user['last_name'],
+				"telegram_username" => $user['username'],
+				"telegram_language_code" => $user['language_code'],
+				"telegram_is_premium" => "0",
+				"telegram_photo_url" => $user['photo_url'],
+				"tg_init_data" => $query,
+				"captcha" => "turnstile",
+				"cf-turnstile-response" => $cap
+			]);
+			$r = curl(host.'app/auth/validation', headers($url), $data);
+			if (preg_match("/icon:\s*'([^']+)'.*?title:\s*'([^']+)'.*?text:\s*'([^']+)'/s", $r, $m)) {
+				$icon  = $m[1];
+				$title = $m[2];
+				$text  = $m[3];
+				if ($icon === 'success') {
+                    Display::sukses($text);
+					return;
+				}else{
+					Display::Error($text.PHP_EOL);
+					return 1;
+				}
+			}else{
+				return;
+			}
+			$retry++;
+			$status = "Login Gagal\n";
+		}
+        Display::Error($status);
+		exit;
+	}
 }
 function Dashboard(){
 	while(true){
 		$r = curl(host."app/dashboard",headers());
+		//print_r($r);exit;
 		// === opsi Timer 2
 		preg_match('/<b id="minute">(\d+)<\/b>:(<b id="second">(\d+)<\/b>)/', $r, $matches);
 		if (isset($matches[1]) && isset($matches[3])) {
@@ -92,28 +122,34 @@ $icon = new IconCoordinat(host);
 $icon->icon_header = headers();
 
 Display::banner();
-if(count(Config::load()) < 1){
-    Config::simpan(['email']);
+if(!Config::pick('QueryID') || !Config::pick('email')){
+	Config::hapus(0);
+    Config::simpan(['QueryID', 'email']);
 }
 Display::banner();
 
 cookie:
+unlink(cookieFile);
 if(!file_exists(cookieFile)){
-	login();
+	if(login()){
+		Config::hapus(0, 'QueryID');
+		Config::tambahKey(0, 'QueryID');
+		goto cookie;
+	}
 }
 
-$r = Dashboard();
-if(!$r){
-	unlink(cookieFile);
-	sleep(3);
-	goto cookie;
-}
+//$r = Dashboard();
+// gak ada user
 Display::Cetak('email', Config::pick('email'));
-Display::Cetak('reffId', $r);
 Display::Line();
 
 $r = curl(host."app/dashboard",headers());
-preg_match_all('#app\/faucet\?currency=([a-zA-Z0-9]+)#i', $r, $matches);
+preg_match_all("#{ code: '([a-zA-Z0-9]+)'#i", $r, $matches);
+if(count($matches[1])<1){
+	Config::hapus(0, 'QueryID');
+	Config::tambahKey(0, 'QueryID');
+	goto cookie;
+}
 if(isset($matches[1])){
 	$coins = array_values(array_unique(array_map('strtolower', $matches[1])));
 	pilih_coin:
@@ -145,7 +181,7 @@ if(isset($matches[1])){
 	foreach ($coin as $c) {
 		$temp[$c] = false;
 	}
-	$gagal = 0;
+	
 	while(true){
 		$allDone = true;
         foreach ($coin as $c) {
@@ -158,132 +194,45 @@ if(isset($matches[1])){
 		foreach($coin as $a => $c){
 			if ($temp[$c] === true) continue;
 			$r = curl(host.'app/faucet?currency='.$c, headers());
-			$sc = $scrap->Result($r);
-            if(!$r){
-				$gagal++;
-				if($gagal > 5){
-					Display::Error("Please turn off Vpn Or Proxy\n");
-                	Display::Error("Please Verify Your Account to use any fetures.\n");
-				exit;
-				}
-				continue;
-			}
-
-            // == Opsi Timer 1
-			$tmr = explode('var wait = ', $r);
-			if(isset($tmr[1])){
-				$tmr = explode('-',$tmr[1])[0];
-				if($tmr){
-					Display::tmr($tmr);
-					continue;
-				}
-			}
-			
-            // === opsi Timer 2
-			preg_match('/<b id="minute">(\d+)<\/b>:(<b id="second">(\d+)<\/b>)/', $r, $matches);
-			if (isset($matches[1]) && isset($matches[3])) {
-				Display::Error("Account Locked\n");
-				$minute = $matches[1];
-				$second = $matches[3];
-				$tmr = ($minute * 60) + $second;
-				Display::Tmr($tmr+5);
-				continue;
-			}
-
-            $status_bal = Functions::xp($r, '<span class="badge badge-danger">', '</span>');
-			if(isset($status_bal) && $status_bal == "Empty"){
-				$temp[$c] = true;
-				Display::Cetak($coin,"Sufficient funds");
-				continue;
-			}
-
-			$data = [];
-			$data = $sc['input'];
-			$cekATB = explode('rel=\"',$r);
-			if(isset($cekATB[1])){
-				$antibot = $captcha->AntiBot($r);
-				if(!$antibot)continue;
-				$data['antibotlinks'] = $antibot;
-			}
-
-            if($sc['captcha']){
-				if($sc['captcha']['cf-turnstile']){
-					$data['captcha'] = "turnstile";
-					$cap = $iewil->Turnstile(host);
-					$data['cf-turnstile-response']=$cap;
-				}else{
-					Display::Error("Sitekey Error\n"); 
-					continue;
-				}
-				if(!$cap)continue;
-			}else
-			if($sc['input']['_iconcaptcha-token']){
-				$icon->token = $sc['input']['_iconcaptcha-token'];
-                $cap = $icon->getResult();
-                if(!$cap)continue;
-				$data = array_merge($data, $$cap);
-			}else{
-				Display::Error("captcha update\n");
-				exit;
-            }
-
-			$data = http_build_query($data);
-
+			$cap = $iewil->turnstile(host);
+			if(!$cap)continue;
+			$csrf = explode('"', explode('<input type="hidden" name="csrf_test_name" value="', $r)[1])[0];
+			$data = http_build_query([
+				"csrf_test_name" => $csrf,
+				"captcha" => "turnstile",
+				"cf-turnstile-response" => $cap
+			]);
 			$r = curl(host.'app/faucet/verify?currency='.$c, headers(), $data);
-
-            if(preg_match('/invalid api key used/',strtolower($r))){
-				Display::Error($c.":: Invalid apikey used");
-				continue;
-			}
-
-			if(preg_match('/sufficient funds/',strtolower($r))){
-				$temp[$c] = true;
-                Display::Error($c.":: Sufficient funds\n");
-				continue;
-			}
-            if(preg_match('/invalid amount/',strtolower($r))){
-				$temp[$c] = true;
-				Display::Error("You are sending an invalid amount of payment to the user\n");
-				continue;
-			}
-			if(preg_match('/invalid claim/',strtolower($r))){
-				$temp[$c] = true;
-				Display::Error("invalid claim\n");
-				continue;
-			}
-            if(preg_match('/Shortlink in order to claim from the faucet!/',$r)){
-				Display::Error(explode("'",explode("html: '",$r)[1])[0]);
-				exit;
-			}
-			preg_match("/Toast\.fire\({\s*icon:\s*'([^']+)',\s*title:\s*'([^']+)',\s*text:\s*'([^']+)'/", $r, $matches);
-			if($matches[1] == "success"){
-				$gagal = 0;
-				Display::Sukses($matches[3]);
-				Display::Line();
-			}elseif(isset($matches[3])){
-				Display::Error($matches[3]);
-				if(preg_match('/Shortlink/',$matches[3])){
-					print "\n";
-					Display::Line();
+			if (preg_match("/icon:\s*'([^']+)'.*?title:\s*'([^']+)'.*?text:\s*'([^']+)'/s", $r, $m)) {
+				$icon  = $m[1];
+				$title = $m[2];
+				$text  = $m[3];
+				
+				if ($icon === 'success') {
+                    Display::Sukses($text);
+				    Display::Line();
+				}elseif($icon === 'warning'){
+					if(preg_match('/sufficient/',$text)){
+						$temp[$c] = true;
+                        Display::Error($c."::".$text."\n");
+					}else
+					if(preg_match('/limit/',$text)){
+						$temp[$c] = true;
+                        Display::Error($c."::".$text."\n");
+						exit;
+					}else{
+						print_r($m);
+						exit;
+					}
+                }elseif($icon === 'error'){
+					$temp[$c] = true;
+                    Display::Error($c."::".$text."\n");
+				}else{
+					print_r($m);
 					exit;
 				}
-				sleep(3);
-				Display::Clearline();
-			}else{
-				Display::Error("Ups");
-				sleep(3);
-				Display::Clearline();
 			}
-			$tmr = explode('var wait = ', $r);
-			if(isset($tmr[1])){
-				$tmr = explode('-',$tmr[1])[0];
-				if($tmr){
-					Display::tmr($tmr);
-					continue;
-				}
-			}
+			Display::Tmr(10);
 		}
 	}
-	Display::Error("All coins have been claimed\n");
 }
-?>

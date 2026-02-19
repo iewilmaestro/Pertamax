@@ -15,8 +15,8 @@ function curl($url, $headers, $data = 0) {
     CURLOPT_CONNECTTIMEOUT => 30, 
     CURLOPT_TIMEOUT => 60, 
     CURLOPT_COOKIE => true, 
-//    CURLOPT_COOKIEFILE => cookieFile, 
-//	CURLOPT_COOKIEJAR => cookieFile
+    CURLOPT_COOKIEFILE => cookieFile, 
+	CURLOPT_COOKIEJAR => cookieFile
     ]);
     if (!empty($headers))  {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -35,33 +35,70 @@ function headers($data = 0){
     $h[] = "Host: ".parse_url(host)['host'];
 	if($data)$h[] = "Content-Length: ".strlen($data);
 	$h[] = "User-Agent: ".Config::pick('user_agent');
-	$h[] = "cookie: ".Config::pick('cookie');
+	//$h[] = "cookie: ".Config::pick('cookie');
 	return $h;
 }
 function Dashboard(){
+    global $scrap;
+    $email = '';
 	$r = curl(host."profile",headers());
-    if(str_contains($r,'Login'))return;
-    $email = Functions::xp($r,'data-cfemail="', '"');
-    if(isset($email)){
-        $email = Functions::cfDecodeEmail($email);
+    $sc = $scrap->Result($r);
+    if(str_contains($sc['title'],'Profile')){
+       $email = Functions::xp($r,'data-cfemail="', '"');
+       $email = Functions::cfDecodeEmail($email);
     }
     return $email;
 }
-
+function login(){
+	global $icon;
+    while(true){
+        $r = curl(reff, headers());
+        preg_match_all('/<input[^>]*name=["\'](.*?)["\'][^>]*value=["\'](.*?)["\'][^>]*>/i', $r, $input);
+        $data = [];
+        for ($i = 0; $i < count($input[1]); $i++) {
+            $data[$input[1][$i]] = $input[2][$i];
+        }
+        $icontoken = explode("'",explode("<input type='hidden' name='_iconcaptcha-token' value='",$r)[1])[0];
+        $data['wallet'] = Config::pick('email');
+        if($icontoken){
+            $icon->token = $icontoken;
+            $cap = $icon->getResult();
+            if(!$cap)continue;
+            $data = array_merge($data, $cap);
+            $data = http_build_query($data);
+            return curl(host.'auth/login', headers(), $data);
+        }
+        Display::Error("Captcha Update\n");
+        exit;
+    }
+}
 $icon = new IconCoordinat(host);
 $icon->icon_header = headers();
 
 Display::banner();
 
 cookie:
+/*
 if(count(Config::load()) < 1){
     Config::simpan(['cookie', 'user_agent']);
 }
+*/
+//==========
+// LOGIN
+//==========
+if(!Config::pick('email')){
+    Config::simpan(['email']);
+}
+if(!file_exists(cookieFile) && !Config::pick('cookie')){
+	login();
+}
+
 Display::banner();
 
 $email = Dashboard();
 if(!$email){
-	Config::hapus(0);
+    unlink(cookieFile);
+	//Config::hapus(0);
 	sleep(3);
 	goto cookie;
 }
@@ -167,13 +204,20 @@ if(isset($matches[1])){
 				$icon->token = $sc['input']['_iconcaptcha-token'];
                 $cap = $icon->getResult();
                 if(!$cap)continue;
+            }elseif($sc['options'][0] == 'turnstile' && str_contains($sc['sitekey'], '0x4')){
+                $cap = $iewil->Turnstile(host);
+                if(!$cap)continue;
+                $captcha = $cap;
+                $cap = [];
+                $cap['cf-turnstile-response'] = $captcha;
+                $cap['captcha'] = 'turnstile';
 			}else{
 				Display::Error("captcha update\n");
 				exit;
             }
 			
 			$data = array_merge($data, $cap);
-            
+            //print_r($data);exit;
 			$data = http_build_query($data);
 			$r = curl(host.'faucet/verify/'.$c, headers(), $data);
 			preg_match("/Swal\.fire\(\s*{\s*icon:\s*'([^']+)',\s*title:\s*'([^']+)',\s*html:\s*'([^']+)'/", $r, $matches);

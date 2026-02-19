@@ -83,6 +83,9 @@ function Dashboard(){
 // ===== SET ECAPTCHA =====
 $ecaptcha = new Ecaptcha(host);
 $ecaptcha->headers = headers();
+// ===== SET ICAPTCHA =====
+$icon = new IconCoordinat(host);
+$icon->icon_header = headers();
 
 Display::banner();
 $r = Config::load();
@@ -189,22 +192,31 @@ if(isset($matches[1])){
 			$data['utt'] = 'Asia/Jakarta';
 			$data['ls'] = 'en-US,en';
 			$data['uf'] = md5(Config::pick('email'));
-
+			print "cek\n";
 			$emot = Functions::xp($r, '<option value="', '"');
 			if(isset($sc['captcha']['cf-turnstile'])){
+				print "turnstile\n";
 				$cap = $iewil->Turnstile('https://satoshifaucet.io');
 				if(!$cap)continue;
 				$data["captcha"] = "turnstile-cloudflare";
 				$data["cf-turnstile-response"] = $cap;
 			}elseif(isset($emot) &&  $emot == "emoji_captcha"){
+				print "emot\n";
 				$captcha = $ecaptcha->getResult();
 				if(!$captcha)continue;
+				$data = array_merge($data, $captcha);
+			}elseif($sc['input']['_iconcaptcha-token']){
+				print "icon\n";
+				$icon->token = $sc['input']['_iconcaptcha-token'];
+                $captcha = $icon->getResult();
+                if(!$captcha)continue;
 				$data = array_merge($data, $captcha);
 			}else{
 				$captcha = array_keys($sc['captcha']);
 				if(isset($captcha[0])){
 					Display::Error("Captcha ".$captcha[0]." not support\n");
 				}else{
+					//print_r($sc);exit;
 					Display::Error("Captcha belum support\n");
 				}
 				if($retry > 5){
@@ -216,6 +228,7 @@ if(isset($matches[1])){
 			}
 			$retry = 0;
 			$data = http_build_query($data);
+			print "verif\n";
 			curl(host.'faucet/verify/'.$c, headers(), $data);
 			$r = curl(host.'faucet/currency/'.$c, headers());
 			preg_match("/Swal\.fire\(\s*{\s*icon:\s*'([^']+)',\s*title:\s*'([^']+)',\s*html:\s*'([^']+)'/", $r, $matches);

@@ -68,6 +68,7 @@ class HtmlScrap {
         $data['locked']     = str_contains($html, 'Locked');
         $data['captcha']    = $this->getCaptcha($html);
 		$data['options']	= $this->getOptionValues($html);
+        $data['sitekey']    = explode('"',explode('sitekey: "', $html)[1])[0];
 		
         // Input
         $input = $this->getInput($html, $form);

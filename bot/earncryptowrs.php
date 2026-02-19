@@ -34,6 +34,10 @@ function headers($data = 0){
     $h[] = "Host: ".parse_url(host)['host'];
 	if($data)$h[] = "Content-Length: ".strlen($data);
 	$h[] = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+	$r = Config::load();
+	if(isset($r[0]['cookie'])){
+		$h[] = "Cookie: ".Config::pick('cookie');
+	}
 	return $h;
 }
 
@@ -97,7 +101,7 @@ if(count(Config::load()) < 1){
 Display::banner();
 
 cookie:
-if(!file_exists(cookieFile)){
+if(!file_exists(cookieFile) && !Config::pick('cookie')){
 	login();
 }
 
@@ -158,6 +162,11 @@ if(isset($matches[1])){
 			if ($temp[$c] === true) continue;
 			$r = curl(host.'app/faucet?currency='.$c, headers());
 			$sc = $scrap->Result($r);
+			if($sc['cloudflare']){
+				unlink(cookieFile);
+				Config::tambahKey(0, 'cookie');
+				goto cookie;
+			}
             if(!$r){
 				$gagal++;
 				if($gagal > 5){

@@ -34,7 +34,12 @@ function curl($url, $headers, $data = 0) {
 function headers($referer = 0){
     $h[] = "Host: ".parse_url(host)['host'];
 	if($referer)$h[] = "referer: ".$referer;
-	$h[] = "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36";
+	$h[] = "Origin: ".host;
+	$h[] = "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+	$h[] = "Accept-Language: en-US,en;q=0.9";
+	$h[] = "Connection: keep-alive";
+	$h[] = 'sec-ch-ua-platform: "Android"';
+	$h[] = "User-Agent: Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 Telegram-Android/10.9.0";
 	return $h;
 }
 
@@ -44,8 +49,11 @@ function login(){
 	$user = urldecode(explode('&',explode('user=', $query)[1])[0]);
 	$user = json_decode($user, true);
 	if(is_array($user)){
-		$url = host.'?r=0';
+		$url = host;
 		$retry = 0;
+		$r = curl(host, headers($url));
+		//print_r($r);exit;
+		$csrf = explode('"', explode('<input type="hidden" name="csrf_test_name" value="', $r)[1])[0];
 		while ($retry < 5) {
 			$cap = $iewil->turnstile(host);
 			if(!$cap){
@@ -56,10 +64,8 @@ function login(){
 			}
 			
 			$data = http_build_query([
-				"ci_csrf_token" => "",
+				"csrf_test_name" => $csrf,
 				"wallet" => Config::pick('email'),
-				"uid" => "",
-				"private_ip" => "",
 				"telegram_user_id" => $user['id'],
 				"telegram_first_name" => $user['first_name'],
 				"telegram_last_name" => $user['last_name'],
@@ -67,6 +73,7 @@ function login(){
 				"telegram_language_code" => $user['language_code'],
 				"telegram_is_premium" => "0",
 				"telegram_photo_url" => $user['photo_url'],
+				"tg_init_data" => $query,
 				"captcha" => "turnstile",
 				"cf-turnstile-response" => $cap
 			]);
@@ -78,7 +85,12 @@ function login(){
 				if ($icon === 'success') {
                     Display::sukses($text);
 					return;
+				}else{
+					Display::Error($text.PHP_EOL);
+					return 1;
 				}
+			}else{
+				return;
 			}
 			$retry++;
 			$status = "Login Gagal\n";
@@ -90,6 +102,7 @@ function login(){
 function Dashboard(){
 	while(true){
 		$r = curl(host."app/dashboard",headers());
+		//print_r($r);exit;
 		// === opsi Timer 2
 		preg_match('/<b id="minute">(\d+)<\/b>:(<b id="second">(\d+)<\/b>)/', $r, $matches);
 		if (isset($matches[1]) && isset($matches[3])) {
@@ -103,22 +116,37 @@ function Dashboard(){
 		return explode('"', explode('value="'.host.'?r=', $r)[1])[0];
 	}
 }
+// ==== SET ICON COORDINAT =====
+$icon = new IconCoordinat(host);
+$icon->icon_header = headers();
 
 Display::banner();
-if(count(Config::load()) < 1){
+if(!Config::pick('QueryID') || !Config::pick('email')){
+	Config::hapus(0);
     Config::simpan(['QueryID', 'email']);
 }
 Display::banner();
 
 cookie:
+unlink(cookieFile);
 if(!file_exists(cookieFile)){
-	login();
+	if(login()){
+		Config::hapus(0, 'QueryID');
+		Config::tambahKey(0, 'QueryID');
+		goto cookie;
+	}
 }
 
+//$r = Dashboard();
+// gak ada user
+Display::Cetak('email', Config::pick('email'));
+Display::Line();
+
 $r = curl(host."app/dashboard",headers());
-preg_match_all('#faucet\?currency=([a-zA-Z0-9]+)#i', $r, $matches);
+preg_match_all("#{ code: '([a-zA-Z0-9]+)'#i", $r, $matches);
 if(count($matches[1])<1){
-	unlink(cookieFile);
+	Config::hapus(0, 'QueryID');
+	Config::tambahKey(0, 'QueryID');
 	goto cookie;
 }
 if(isset($matches[1])){
@@ -167,8 +195,9 @@ if(isset($matches[1])){
 			$r = curl(host.'app/faucet?currency='.$c, headers());
 			$cap = $iewil->turnstile(host);
 			if(!$cap)continue;
+			$csrf = explode('"', explode('<input type="hidden" name="csrf_test_name" value="', $r)[1])[0];
 			$data = http_build_query([
-				"ci_csrf_token" => "",
+				"csrf_test_name" => $csrf,
 				"captcha" => "turnstile",
 				"cf-turnstile-response" => $cap
 			]);
