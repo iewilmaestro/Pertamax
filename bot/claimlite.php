@@ -33,7 +33,9 @@ function curl($url, $headers, $data = 0) {
 function headers($data = 0){
     $h[] = "Host: ".parse_url(host)['host'];
 	if($data)$h[] = "Content-Length: ".strlen($data);
-	$h[] = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+	//$h[] = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+    $h[] = "User-Agent: ".Config::pick('user_agent');
+    $h[] = "Cookie: ".Config::pick('cookie');
 	return $h;
 }
 function login(){
@@ -79,21 +81,23 @@ Display::banner();
 
 cookie:
 if(count(Config::load()) < 1){
-    Config::simpan(['email']);
+    Config::simpan(['cookie', 'user_agent']);
+    //Config::simpan(['email']);
 }
 Display::banner();
-
+/*
 if(!file_exists(cookieFile)){
 	login();
 }
-
+*/
 $r = Dashboard();
 if(!$r){
+    Config::hapus(0);
 	unlink(cookieFile);
 	sleep(3);
 	goto cookie;
 }
-Display::Cetak('email', Config::pick('email'));
+Display::Cetak('email', $r);
 Display::Line();
 
 $r = curl(host."dashboard",headers());
